@@ -1,0 +1,163 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[portuguese]{babel}
+\usepackage{amsmath, amssymb, amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{microtype}
+
+% Definições básicas de layout simulando o estilo ACL de 2 colunas
+\geometry{top=2.5cm, bottom=2.5cm, left=2cm, right=2cm}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=blue,
+    urlcolor=blue
+}
+
+\title{\textbf{Modelação e Previsão do Índice de Ações da Noruega: Uma Abordagem Comparativa entre SARIMAX, VAR e Redes Neuronais Recorrentes (LSTM)}}
+
+\author{
+  \textbf{André Marques} \\
+  Mestrado em Ciência de Dados \\
+  Instituto Universitário de Lisboa (ISCTE-IUL) \\
+  \texttt{diana.mendes@iscte-iul.pt} % email da docente / contacto da UC
+}
+
+\date{31 de maio de 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Este trabalho apresenta um estudo empírico sobre a modelação e previsão do índice de ações da Noruega (\textit{Share Price Index}), integrando a sua relação macrofinanceira com o preço do Petróleo Brent e a taxa de câmbio USD/NOK no período de 1992 a 2026. Sendo a Noruega uma das principais economias exportadoras de petróleo da Europa, este estudo analisa as interações dinâmicas destas variáveis. Empregamos três classes distintas de modelos: um modelo univariado com variáveis exógenas (SARIMAX), um modelo multivariado linear clássico (Vetor Autorregressivo - VAR) e um modelo de \textit{Deep Learning} não-linear (Rede Recorrente LSTM em PyTorch). Os nossos resultados out-of-sample demonstram a superioridade inequívoca das abordagens multivariadas na presença de dinâmicas macrofinanceiras, com a rede LSTM a obter a maior precisão de previsão com um MAPE de apenas 2.62\%, seguida de perto pelo modelo VAR (2.94\%).
+\end{abstract}
+
+\section{Introdução}
+O mercado de capitais da Noruega possui características singulares devido ao perfil económico do país. A Noruega é um dos maiores exportadores de petróleo e gás do mundo, o que torna a sua moeda (Coroa Norueguesa - NOK) uma ``petro-moeda'' e correlaciona intrinsecamente a performance das suas empresas cotadas (representadas no Índice de Ações) com as flutuações das \textit{commodities} energéticas. 
+
+Neste contexto, colocamos as seguintes **perguntas de investigação**:
+1. \textit{Até que ponto o preço do Petróleo Brent e a taxa de câmbio USD/NOK influenciam e ajudam a prever o índice acionista norueguês?}
+2. \textit{Conseguirão as redes neuronais recorrentes (LSTM) capturar relações não-lineares complexas melhor do que os modelos econométricos clássicos (VAR e SARIMAX) neste mercado?}
+
+O objetivo principal deste trabalho consiste em modelar e prever a série temporal mensal do Índice de Ações da Noruega de forma robusta. As principais contribuições deste estudo são: (i) comprovar empiricamente a forte ligação de curto prazo entre o petróleo e a economia financeira norueguesa, (ii) demonstrar que a modelação multivariada em primeiras diferenças dos logs é fundamental para estabilizar a variância e prever tendências macroeconómicas, e (iii) apresentar uma comparação rigorosa out-of-sample entre modelos estatísticos e algoritmos de \textit{Deep Learning}.
+
+O restante artigo está estruturado da seguinte forma: a Secção 2 apresenta o enquadramento teórico e empírico dos modelos; a Secção 3 detalha a arquitetura dos modelos ajustados; a Secção 4 descreve o setup experimental e a recolha dos dados; a Secção 5 analisa detalhadamente os resultados e diagnósticos; e a Secção 6 conclui o estudo apresentando as limitações e direções futuras.
+
+\section{Background Teórico}
+Para modelar o índice de ações da Noruega ($S_t$), o preço do petróleo Brent ($O_t$) e a taxa de câmbio USD/NOK ($E_t$), recorremos a três metodologias essenciais:
+
+\subsection{Modelo SARIMAX}
+O modelo Seasonal Autoregressive Integrated Moving Average com variáveis Exógenas (SARIMAX) é uma extensão univariada dos modelos ARIMA clássicos de Box-Jenkins. Matematicamente, para uma série $y_t$:
+\begin{equation}
+\phi_p(L)\Phi_P(L^s)(1-L)^d(1-L^s)^D y_t = \beta X_t + \theta_q(L)\Theta_Q(L^s)\epsilon_t
+\end{equation}
+onde $X_t$ representa a variável exógena (neste caso, o log do Petróleo Brent), $L$ é o operador de lag ($L y_t = y_{t-1}$), e $\epsilon_t$ representa o ruído branco. Este modelo assume linearidade e foca-se na autocorrelação própria da variável de interesse adicionando o impacto de fatores externos.
+
+\subsection{Modelo VAR (Vetor Autorregressivo)}
+O modelo VAR captura interdependências lineares dinâmicas entre múltiplas séries temporais. Ao contrário do SARIMAX, todas as variáveis são tratadas como endógenas. Um VAR com $p$ lags é expresso por:
+\begin{equation}
+\mathbf{Y}_t = \mathbf{c} + \mathbf{A}_1 \mathbf{Y}_{t-1} + \dots + \mathbf{A}_p \mathbf{Y}_{t-p} + \mathbf{u}_t
+\end{equation}
+onde $\mathbf{Y}_t = [\Delta \log S_t, \Delta \log E_t, \Delta \log O_t]^T$, $\mathbf{A}_i$ são matrizes de coeficientes a estimar, e $\mathbf{u}_t$ é um vetor de inovações com média zero. Caso existisse cointegração entre as variáveis em nível, a especificação correta seria o VECM (Vector Error Correction Model), que inclui um termo de correção de erro de longo prazo. No entanto, na ausência de cointegração, o VAR em diferenças é a especificação teoricamente adequada para evitar regressões espúrias.
+
+\subsection{Redes Neuronais Recorrentes (LSTM)}
+As redes \textit{Long Short-Term Memory} (LSTM) são uma arquitetura de \textit{Deep Learning} especialmente desenhada para dados sequenciais, capaz de mitigar o problema do desvanecimento do gradiente. A intuição matemática baseia-se na utilização de portas dinâmicas (\textit{gates}): a porta de esquecimento ($f_t$), a porta de entrada ($i_t$) e a porta de saída ($o_t$). Estas controlam o fluxo de informação no estado da célula ($c_t$), permitindo que a rede retenha dependências de longo prazo não-lineares, cruciais para a volatilidade dos mercados financeiros:
+\begin{equation}
+f_t = \sigma(W_f [h_{t-1}, x_t] + b_f)
+\end{equation}
+
+\section{Modelos e Arquitetura}
+Os modelos finais foram ajustados no conjunto de treino seguindo critérios rigorosos de otimização:
+
+\begin{enumerate}
+    \item \textbf{SARIMAX(1,1,1)x(0,0,0)[12]}: Determinado automaticamente por minimização do AIC via algoritmo de Stepwise. Utiliza o $\log(O_t)$ como regressor exógeno. A especificação matemática demonstra a necessidade de uma primeira diferença ($d=1$) para estabilização da média.
+    \item \textbf{VAR(2)}: A seleção de lags foi feita com base no critério de informação AIC, identificando $p=2$ lags mensais como a estrutura ótima para capturar o efeito momentum do petróleo e câmbio na bolsa norueguesa.
+    \item \textbf{LSTM Forecaster}: Implementado em PyTorch, a arquitetura final consiste numa camada LSTM com $8$ neurónios ocultos (\textit{hidden dimension}), uma janela temporal retroativa (\textit{lookback}) de 3 meses, e uma camada densa de saída linear para a previsão do log-retorno. A função de perda foi o MSE (Mean Squared Error), otimizada via Adam com taxa de aprendizagem $\alpha = 0.01$ ao longo de 150 épocas.
+\end{enumerate}
+
+\section{Configuração Experimental}
+\subsection{Recolha e Alinhamento de Dados}
+Descarregámos 3 séries mensais da FRED no período de 1 de janeiro de 1992 a 1 de março de 2026 (411 observações completas):
+- \textbf{Share\_Index} ($S_t$): SPASTT01NOM661N (OECD Stock Price Index)
+- \textbf{USD\_NOK} ($E_t$): EXNOUS (USD/NOK exchange rate)
+- \textbf{Brent\_Oil} ($O_t$): POILBREUSDM (Global Price of Brent Crude)
+
+\subsection{Estatísticas Descritivas}
+A Tabela \ref{tab:desc} resume as estatísticas descriptivas das séries de treino (369 observações, 90\% da amostra). O índice acionista apresenta assimetria positiva moderada ($0.92$), enquanto a taxa de câmbio e o petróleo têm curtose negativa, refletindo ciclos económicos marcados.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Variável} & \textbf{Média} & \textbf{Desvio P.} & \textbf{Mínimo} & \textbf{Máximo} & \textbf{Skewness} \\
+\midrule
+$S_t$ (Ações) & 66.80 & 52.02 & 6.73 & 216.43 & 0.92 \\
+$E_t$ (Câmbio) & 7.23 & 1.20 & 5.05 & 10.42 & 0.35 \\
+$O_t$ (Petróleo) & 53.01 & 32.96 & 10.16 & 133.59 & 0.57 \\
+\bottomrule
+\end{tabular}
+\caption{Estatísticas Descritivas das Variáveis em Nível (Treino).}
+\label{tab:desc}
+\end{table}
+
+\subsection{Testes de Estacionaridade}
+Os testes Augmented Dickey-Fuller (ADF), Phillips-Perron (PP) e KPSS demonstraram empiricamente que todas as três séries em nível são **não-estacionárias** (Tabela \ref{tab:roots}). Após a aplicação da primeira diferença do logaritmo natural ($\Delta \log$), todas as séries rejeitam o teste de raiz unitária a 1\%, tornando-se estacionárias ($I(1)$).
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Série (Treino)} & \textbf{ADF (p-val)} & \textbf{PP (p-val)} & \textbf{KPSS (Stat)} \\
+\midrule
+$S_t$ (Nível) & 0.8481 & 0.8815 & 0.4924* \\
+$E_t$ (Nível) & 0.9060 & 0.8749 & 0.4298* \\
+$O_t$ (Nível) & 0.1350 & 0.3787 & 0.3471* \\
+\midrule
+$\Delta \log S_t$ (Diff) & 0.0000 & 0.0000 & 0.0291 \\
+$\Delta \log E_t$ (Diff) & 0.0000 & 0.0000 & 0.0855 \\
+$\Delta \log O_t$ (Diff) & 0.0000 & 0.0000 & 0.0451 \\
+\bottomrule
+\end{tabular}
+\caption{Resultados dos Testes de Raiz Unitária (Nível vs. 1ª Diferença do Log). * indica rejeição de estacionaridade a 5\%.}
+\label{tab:roots}
+\end{table}
+
+\subsection{Teste de Cointegração}
+O teste de Cointegração de Johansen aplicado ao vetor $[\log S_t, \log E_t, \log O_t]^T$ apresentou estatísticas de traço de $15.30$ para o rank $r \leq 0$, significativamente inferior ao valor crítico de $29.80$ a 95\%. Assim, concluímos pela **ausência de cointegração**, justificando teoricamente a estimação do modelo VAR em primeiras diferenças.
+
+\section{Resultados e Análise}
+O período de teste (\textit{out-of-sample}) estende-se de outubro de 2022 a março de 2026 (42 observações). A Tabela \ref{tab:errors} exibe a comparação das métricas de erro.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Modelo} & \textbf{RMSE} & \textbf{MAE} & \textbf{MAPE (\%)} \\
+\midrule
+SARIMAX & 65.51 & 53.90 & 20.35\% \\
+\textbf{VAR (2)} & 13.00 & 7.89 & 2.94\% \\
+\textbf{LSTM (PyTorch)} & \textbf{11.29} & \textbf{6.87} & \textbf{2.62\%} \\
+\bottomrule
+\end{tabular}
+\caption{Métricas de Erro de Previsão Out-of-Sample no Período de Teste.}
+\label{tab:errors}
+\end{table}
+
+A análise revela uma discrepância substancial entre o modelo univariado SARIMAX e os modelos multivariados (VAR e LSTM). O SARIMAX obteve um MAPE de $20.35\%$, falhando em antecipar as mudanças estruturais e acelerações pós-pandémicas e geopolíticas na cotação acionista. Isto deve-se ao facto de o SARIMAX assumir uma dinâmica linear simplificada da variável exógena.
+
+Em contrapartida, o modelo multivariado **VAR(2)** obteve uma performance notável com um MAPE de apenas $2.94\%$, mostrando que capturar os \textit{lags} cruzados entre o Brent e a taxa de câmbio é indispensável para modelar o mercado norueguês. A **Rede LSTM** obteve o melhor desempenho absoluto ($MAPE = 2.62\%$). A capacidade do modelo LSTM de reter memória de longo prazo nas suas portas e modelar interações não-lineares permitiu aproximar-se com enorme precisão dos valores reais do índice de ações no período 2022-2026.
+
+\section{Conclusão e Trabalho Futuro}
+Este trabalho demonstrou que a modelação macrofinanceira multivariada é altamente eficaz para prever o índice de ações da Noruega, com destaque para a superioridade da rede recorrente LSTM e do modelo VAR. A ausência de cointegração indica que estas relações residem sobretudo nas dinâmicas de curto prazo e variações percentuais (\textit{log-returns}).
+
+Como limitações deste trabalho, destaca-se a dependência da frequência mensal (que suaviza picos de alta frequência). Para investigações futuras, sugere-se: (i) modelar a volatilidade condicional através de uma especificação híbrida VAR-GARCH ou LSTM-GARCH para capturar clusters de volatilidade, e (ii) alargar a recolha para dados diários incluindo um índice de sentimento de notícias específicas do mercado de petróleo.
+
+\end{document}
