@@ -11,6 +11,9 @@ from statsmodels.tsa.api import VAR
 import pmdarima as pm
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 
+# Paths are relative to the repository root, so the script runs from any folder
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 # Configuração de sementes para reprodutibilidade
 np.random.seed(42)
 torch.manual_seed(42)
@@ -22,7 +25,7 @@ def run_modeling_evaluation():
     print("Iniciando Fase 4 & 5: Modelação, Previsão Out-of-Sample e Forecast...")
     
     # 1. Carregar dados
-    data_path = os.path.join('data', 'norway_data.csv')
+    data_path = os.path.join(ROOT, 'data', 'norway_data.csv')
     df = pd.read_csv(data_path, parse_dates=['observation_date'], index_col='observation_date')
     
     n_obs = len(df)
@@ -85,7 +88,7 @@ def run_modeling_evaluation():
     sarimax_results = sarimax_model.fit(disp=False)
     
     # Salvar resumo do SARIMAX para anexo
-    with open(os.path.join('report', 'tables', 'sarimax_summary.txt'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(ROOT, 'report', 'tables', 'sarimax_summary.txt'), 'w', encoding='utf-8') as f:
         f.write(str(sarimax_results.summary()))
         
     # Previsão out-of-sample (no conjunto de teste)
@@ -137,7 +140,7 @@ def run_modeling_evaluation():
     var_results = var_model.fit(best_lag)
     
     # Salvar resumo do VAR
-    with open(os.path.join('report', 'tables', 'var_summary.txt'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(ROOT, 'report', 'tables', 'var_summary.txt'), 'w', encoding='utf-8') as f:
         f.write(str(var_results.summary()))
         
     # Previsão out-of-sample para o VAR
@@ -305,7 +308,7 @@ def run_modeling_evaluation():
     comparison_df = pd.DataFrame(model_comparison)
     print("\n--- Comparação de Desempenho dos Modelos ---")
     print(comparison_df.to_string(index=False))
-    comparison_df.to_csv(os.path.join('report', 'tables', 'model_comparison.csv'), index=False)
+    comparison_df.to_csv(os.path.join(ROOT, 'report', 'tables', 'model_comparison.csv'), index=False)
     
     # Gráfico de Previsão Out-of-Sample (Teste)
     plt.figure(figsize=(12, 6))
@@ -319,7 +322,7 @@ def run_modeling_evaluation():
     plt.legend(loc='upper left', fontsize=10)
     plt.grid(True, linestyle=':', alpha=0.6)
     plt.tight_layout()
-    plt.savefig(os.path.join('report', 'plots', 'out_of_sample_comparison.png'), dpi=300)
+    plt.savefig(os.path.join(ROOT, 'report', 'plots', 'out_of_sample_comparison.png'), dpi=300)
     plt.close()
     
     # Gráfico de Forecast Futuro (10 passos à frente)
@@ -336,7 +339,7 @@ def run_modeling_evaluation():
     plt.legend(loc='upper left', fontsize=10)
     plt.grid(True, linestyle=':', alpha=0.6)
     plt.tight_layout()
-    plt.savefig(os.path.join('report', 'plots', 'future_forecast_comparison.png'), dpi=300)
+    plt.savefig(os.path.join(ROOT, 'report', 'plots', 'future_forecast_comparison.png'), dpi=300)
     plt.close()
     
     # Salvar forecasts numa tabela
@@ -345,7 +348,7 @@ def run_modeling_evaluation():
         'VAR': var_forecast,
         'LSTM': lstm_forecast
     }, index=exog_forecast.index)
-    forecast_df.to_csv(os.path.join('report', 'tables', 'future_forecasts.csv'))
+    forecast_df.to_csv(os.path.join(ROOT, 'report', 'tables', 'future_forecasts.csv'))
     
     print("\nModelação, avaliação e forecast executados com total sucesso!")
     print("Gráficos e tabelas foram guardados na pasta report/ com alta qualidade.")

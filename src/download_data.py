@@ -1,6 +1,9 @@
 import pandas as pd
 import os
 
+# Paths are relative to the repository root, so the script runs from any folder
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 def download_data():
     print("Iniciando download dos dados da FRED...")
     
@@ -40,7 +43,7 @@ def download_data():
     os.makedirs('data', exist_ok=True)
     
     # Salvar em CSV
-    output_path = os.path.join('data', 'norway_data.csv')
+    output_path = os.path.join(ROOT, 'data', 'norway_data.csv')
     merged_df.to_csv(output_path)
     print(f"\nDados combinados com sucesso e salvos em: {os.path.abspath(output_path)}")
     print(f"Número de observações: {len(merged_df)}")

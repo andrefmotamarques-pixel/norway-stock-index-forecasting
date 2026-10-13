@@ -5,16 +5,19 @@ import matplotlib.pyplot as plt
 from statsmodels.tsa.stattools import adfuller, kpss
 from arch.unitroot import PhillipsPerron
 
+# Paths are relative to the repository root, so the script runs from any folder
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 def run_eda_stationarity():
     print("Iniciando Análise Exploratória e Testes de Estacionaridade...")
     
     # 1. Carregar dados
-    data_path = os.path.join('data', 'norway_data.csv')
+    data_path = os.path.join(ROOT, 'data', 'norway_data.csv')
     df = pd.read_csv(data_path, parse_dates=['observation_date'], index_col='observation_date')
     
     # Criar pasta para gráficos e tabelas se não existir
-    os.makedirs(os.path.join('report', 'plots'), exist_ok=True)
-    os.makedirs(os.path.join('report', 'tables'), exist_ok=True)
+    os.makedirs(os.path.join(ROOT, 'report', 'plots'), exist_ok=True)
+    os.makedirs(os.path.join(ROOT, 'report', 'tables'), exist_ok=True)
     
     # 2. Divisão de treino e teste (90% treino, 10% teste)
     n_obs = len(df)
@@ -33,7 +36,7 @@ def run_eda_stationarity():
     
     print("\nEstatísticas Descritivas (Treino):")
     print(desc_stats.to_string())
-    desc_stats.to_csv(os.path.join('report', 'tables', 'descriptive_stats.csv'))
+    desc_stats.to_csv(os.path.join(ROOT, 'report', 'tables', 'descriptive_stats.csv'))
     
     # 4. Gráficos das Séries Originais
     plt.figure(figsize=(12, 10))
@@ -47,7 +50,7 @@ def run_eda_stationarity():
         plt.legend(loc='upper left')
         plt.grid(True, linestyle=':', alpha=0.6)
     plt.tight_layout()
-    plt.savefig(os.path.join('report', 'plots', 'original_series.png'), dpi=300)
+    plt.savefig(os.path.join(ROOT, 'report', 'plots', 'original_series.png'), dpi=300)
     plt.close()
     
     # 5. Análise de Estacionaridade (Nível vs Diferenças)
@@ -79,7 +82,7 @@ def run_eda_stationarity():
         print(f"  KPSS: Stat={res['KPSS_stat']:.4f}, p-value={res['KPSS_p']:.4f} (H0: estacionária, p < 0.05 rejeita H0)")
         
     # Salvar resultados em nível
-    pd.DataFrame(results_level).transpose().to_csv(os.path.join('report', 'tables', 'stationarity_level.csv'))
+    pd.DataFrame(results_level).transpose().to_csv(os.path.join(ROOT, 'report', 'tables', 'stationarity_level.csv'))
     
     # 6. Transformação (Log-Diferenças / Retornos Logarítmicos)
     # Para séries de preços (Share_Index, Brent_Oil) e cambial (USD_NOK), a log-diferença
@@ -98,7 +101,7 @@ def run_eda_stationarity():
         print(f"  PP:   Stat={res['PP_stat']:.4f}, p-value={res['PP_p']:.4f}")
         print(f"  KPSS: Stat={res['KPSS_stat']:.4f}, p-value={res['KPSS_p']:.4f}")
         
-    pd.DataFrame(results_diff).transpose().to_csv(os.path.join('report', 'tables', 'stationarity_diff.csv'))
+    pd.DataFrame(results_diff).transpose().to_csv(os.path.join(ROOT, 'report', 'tables', 'stationarity_diff.csv'))
     
     # Gráficos das Séries Diferenciadas
     plt.figure(figsize=(12, 10))
@@ -111,7 +114,7 @@ def run_eda_stationarity():
         plt.legend(loc='upper left')
         plt.grid(True, linestyle=':', alpha=0.6)
     plt.tight_layout()
-    plt.savefig(os.path.join('report', 'plots', 'differenced_series.png'), dpi=300)
+    plt.savefig(os.path.join(ROOT, 'report', 'plots', 'differenced_series.png'), dpi=300)
     plt.close()
     
     print("\nAnálise terminada com sucesso! Gráficos e tabelas salvos na pasta report/")

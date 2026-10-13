@@ -34,20 +34,22 @@ src/download_data.py            # downloads the series from FRED
 src/eda_and_stationarity.py     # EDA, unit root and cointegration tests
 src/models_and_evaluation.py    # SARIMAX, VAR, LSTM, evaluation and forecast
 analysis.ipynb                  # notebook version with outputs
-report/report.pdf               # full written report (Portuguese)
-report/                         # LaTeX source, plots and result tables
+report/report_en.pdf            # full written report (English)
+report/report_pt.pdf            # original report (Portuguese)
+report/                         # LaTeX sources (main.tex in English, main_pt.tex in Portuguese), plots and result tables
+requirements.txt                # Python dependencies
 ```
 
 ## How to run
 
 ```bash
-pip install pandas numpy matplotlib statsmodels pmdarima scikit-learn torch
+pip install -r requirements.txt
 python src/download_data.py          # optional, data is already included
 python src/eda_and_stationarity.py
 python src/models_and_evaluation.py
 ```
 
-Run the scripts from the repository root.
+Paths are resolved from the repository root, so the scripts can be run from any folder.
 
 ## Tech stack
 
@@ -55,4 +57,4 @@ Python · pandas · statsmodels · pmdarima · PyTorch · scikit-learn · matplo
 
 ## Team
 
-André Marques and Afonso Claudino. The full report with the team's methodology and discussion is in [`report/report.pdf`](report/report.pdf) (Portuguese).
+André Marques and Afonso Claudino. The full report with the team's methodology and discussion is in [`report/report_en.pdf`](report/report_en.pdf) (English) and [`report/report_pt.pdf`](report/report_pt.pdf) (original, Portuguese).
