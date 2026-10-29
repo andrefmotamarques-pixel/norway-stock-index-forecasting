@@ -14,7 +14,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 # Paths are relative to the repository root, so the script runs from any folder
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Configuração de sementes para reprodutibilidade
+# Set random seeds for reproducibility
 np.random.seed(42)
 torch.manual_seed(42)
 
@@ -22,9 +22,9 @@ def calculate_mape(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 
 def run_modeling_evaluation():
-    print("Iniciando Fase 4 & 5: Modelação, Previsão Out-of-Sample e Forecast...")
+    print("Starting Phases 4 & 5: Modelling, Out-of-Sample Prediction and Forecasting...")
     
-    # 1. Carregar dados
+    # 1. Load data
     data_path = os.path.join(ROOT, 'data', 'norway_data.csv')
     df = pd.read_csv(data_path, parse_dates=['observation_date'], index_col='observation_date')
     
@@ -33,39 +33,39 @@ def run_modeling_evaluation():
     train_df = df.iloc[:train_size]
     test_df = df.iloc[train_size:]
     
-    # Logs das séries
+    # Log of the series
     train_log = np.log(train_df)
     test_log = np.log(test_df)
     full_log = np.log(df)
     
-    # 1ª Diferença dos Logs (Séries Estacionárias)
+    # First difference of the logs (stationary series)
     train_log_diff = train_log.diff().dropna()
     
-    # Lista de resultados para a tabela final de comparação
+    # Results list for the final comparison table
     model_comparison = []
     predictions_dict = {'True': test_df['Share_Index']}
     
     # ==========================================
-    # MODELO 1: SARIMAX (Univariado + Exógenas)
+    # MODEL 1: SARIMAX (Univariate + Exogenous)
     # ==========================================
-    print("\n--- A treinar Modelo 1: SARIMAX ---")
+    print("\n--- Training Model 1: SARIMAX ---")
     
-    # Vamos usar pmdarima para selecionar o melhor modelo SARIMAX automaticamente.
-    # Como Brent_Oil é uma variável exógena importante, vamos usá-la.
-    # pmdarima seleciona o modelo baseado no AIC
-    print("A selecionar ordem ARIMA ótima com pmdarima...")
+    # Use pmdarima to select the best SARIMAX model automatically.
+    # Brent_Oil is an important exogenous variable, so it is included.
+    # pmdarima selects the model based on AIC
+    print("Selecting the optimal ARIMA order with pmdarima...")
     
-    # Brent Oil exógena
+    # Brent Oil as exogenous variable
     exog_train = train_log[['Brent_Oil']]
     exog_test = test_log[['Brent_Oil']]
     
-    # Auto-ARIMA no log(Share_Index) com d=1 e exog
+    # Auto-ARIMA on log(Share_Index) with d=1 and exogenous regressor
     sarimax_auto = pm.auto_arima(
         train_log['Share_Index'],
         X=exog_train,
         d=1,
         seasonal=True,
-        m=12,  # sazonalidade mensal
+        m=12,  # monthly seasonality
         stepwise=True,
         suppress_warnings=True,
         error_action="ignore",
@@ -74,9 +74,9 @@ def run_modeling_evaluation():
     
     order = sarimax_auto.order
     seasonal_order = sarimax_auto.seasonal_order
-    print(f"Melhor ordem SARIMAX selecionada: ARIMA{order}x{seasonal_order}")
+    print(f"Best SARIMAX order selected: ARIMA{order}x{seasonal_order}")
     
-    # Ajustar o modelo final com statsmodels para ter diagnósticos completos
+    # Fit the final model with statsmodels to get full diagnostics
     sarimax_model = SARIMAX(
         train_log['Share_Index'],
         exog=exog_train,
@@ -87,12 +87,12 @@ def run_modeling_evaluation():
     )
     sarimax_results = sarimax_model.fit(disp=False)
     
-    # Salvar resumo do SARIMAX para anexo
+    # Save the SARIMAX summary for the appendix
     with open(os.path.join(ROOT, 'report', 'tables', 'sarimax_summary.txt'), 'w', encoding='utf-8') as f:
         f.write(str(sarimax_results.summary()))
         
-    # Previsão out-of-sample (no conjunto de teste)
-    # SARIMAX prevê em log, depois fazemos exp()
+    # Out-of-sample prediction (on the test set)
+    # SARIMAX predicts in logs, then exp() is applied
     sarimax_pred_log = sarimax_results.predict(
         start=test_df.index[0],
         end=test_df.index[-1],
@@ -101,7 +101,7 @@ def run_modeling_evaluation():
     sarimax_pred = np.exp(sarimax_pred_log)
     predictions_dict['SARIMAX'] = sarimax_pred
     
-    # Métricas de erro
+    # Error metrics
     sarimax_rmse = np.sqrt(mean_squared_error(test_df['Share_Index'], sarimax_pred))
     sarimax_mae = mean_absolute_error(test_df['Share_Index'], sarimax_pred)
     sarimax_mape = calculate_mape(test_df['Share_Index'], sarimax_pred)
@@ -113,8 +113,8 @@ def run_modeling_evaluation():
         'MAPE': sarimax_mape
     })
     
-    # Forecast futuro (10 passos à frente)
-    # Assumimos que a exógena (Brent Oil) mantém o seu último valor no futuro (ou cresce ao valor médio histórico)
+    # Future forecast (10 steps ahead)
+    # Assume the exogenous variable (Brent Oil) stays at its last value in the future (or grows at its historical average rate)
     last_oil = test_log['Brent_Oil'].iloc[-1]
     exog_forecast = pd.DataFrame({'Brent_Oil': [last_oil] * 10}, 
                                  index=pd.date_range(start=test_df.index[-1] + pd.DateOffset(months=1), periods=10, freq='MS'))
@@ -123,36 +123,36 @@ def run_modeling_evaluation():
     sarimax_forecast = np.exp(sarimax_forecast_log)
     
     # ==========================================
-    # MODELO 2: VAR (Vetor Autorregressivo)
+    # MODEL 2: VAR (Vector Autoregression)
     # ==========================================
-    print("\n--- A treinar Modelo 2: VAR ---")
+    print("\n--- Training Model 2: VAR ---")
     
-    # VAR corre sobre as primeiras diferenças dos logs (estacionárias)
+    # VAR runs on the first differences of the logs (stationary)
     var_model = VAR(train_log_diff)
     
-    # Seleção de lag ótima
+    # Optimal lag selection
     lag_selection = var_model.select_order(maxlags=12)
     best_lag = lag_selection.aic
-    print(f"Melhor lag para VAR (critério AIC): {best_lag}")
+    print(f"Best VAR lag (AIC criterion): {best_lag}")
     if best_lag == 0:
-        best_lag = 1  # garantir pelo menos 1 lag
+        best_lag = 1  # ensure at least 1 lag
         
     var_results = var_model.fit(best_lag)
     
-    # Salvar resumo do VAR
+    # Save the VAR summary
     with open(os.path.join(ROOT, 'report', 'tables', 'var_summary.txt'), 'w', encoding='utf-8') as f:
         f.write(str(var_results.summary()))
         
-    # Previsão out-of-sample para o VAR
-    # Precisamos de prever recursivamente no conjunto de teste (em log-diferenças)
-    # Depois, reconstruímos os níveis usando o último valor conhecido do treino
+    # Out-of-sample prediction for the VAR
+    # Predict recursively over the test set (in log differences)
+    # Then rebuild the levels from the last known training value
     test_inputs = train_log_diff.values[-best_lag:]
     var_preds_diff = var_results.forecast(test_inputs, steps=len(test_df))
     
-    # Converter previsões diff de volta para nível
+    # Convert differenced predictions back to levels
     var_pred = []
     last_val_log = train_log['Share_Index'].iloc[-1]
-    for d_pred in var_preds_diff[:, 0]:  # a coluna 0 é Share_Index
+    for d_pred in var_preds_diff[:, 0]:  # column 0 is Share_Index
         next_val_log = last_val_log + d_pred
         var_pred.append(np.exp(next_val_log))
         last_val_log = next_val_log
@@ -160,7 +160,7 @@ def run_modeling_evaluation():
     var_pred = pd.Series(var_pred, index=test_df.index)
     predictions_dict['VAR'] = var_pred
     
-    # Métricas de erro
+    # Error metrics
     var_rmse = np.sqrt(mean_squared_error(test_df['Share_Index'], var_pred))
     var_mae = mean_absolute_error(test_df['Share_Index'], var_pred)
     var_mape = calculate_mape(test_df['Share_Index'], var_pred)
@@ -172,7 +172,7 @@ def run_modeling_evaluation():
         'MAPE': var_mape
     })
     
-    # Forecast futuro (10 passos à frente)
+    # Future forecast (10 steps ahead)
     test_all_diff = np.log(df).diff().dropna()
     var_inputs_forecast = test_all_diff.values[-best_lag:]
     var_forecast_diff = var_results.forecast(var_inputs_forecast, steps=10)
@@ -187,31 +187,31 @@ def run_modeling_evaluation():
     var_forecast = pd.Series(var_forecast, index=exog_forecast.index)
     
     # ==========================================
-    # MODELO 3: LSTM (Deep Learning)
+    # MODEL 3: LSTM (Deep Learning)
     # ==========================================
-    print("\n--- A treinar Modelo 3: LSTM ---")
+    print("\n--- Training Model 3: LSTM ---")
     
-    # Preparar os dados para a rede neuronal recorrente
-    # Usaremos lags das 3 variáveis log-diferenciadas como inputs e preveremos o próximo log-diferença de Share_Index.
+    # Prepare the data for the recurrent neural network
+    # Lags of the 3 log-differenced variables are used as inputs to predict the next log difference of Share_Index.
     full_diff = np.log(df).diff().dropna()
-    train_diff_values = full_diff.iloc[:train_size-1].values  # -1 por causa da diferença
+    train_diff_values = full_diff.iloc[:train_size-1].values  # -1 because of differencing
     
-    lookback = 3 # usar 3 meses anteriores
+    lookback = 3 # use the previous 3 months
     
     def create_lstm_dataset(data, lookback):
         X, y = [], []
         for i in range(len(data) - lookback):
-            X.append(data[i:i+lookback]) # lags de todas as 3 variáveis
-            y.append(data[i+lookback, 0]) # prever a próxima variação do Share_Index (coluna 0)
+            X.append(data[i:i+lookback]) # lags of all 3 variables
+            y.append(data[i+lookback, 0]) # predict the next change in Share_Index (column 0)
         return np.array(X), np.array(y)
         
     X_train, y_train = create_lstm_dataset(train_diff_values, lookback)
     
-    # Converter para tensores do PyTorch
+    # Convert to PyTorch tensors
     X_train_t = torch.FloatTensor(X_train)
     y_train_t = torch.FloatTensor(y_train).unsqueeze(1)
     
-    # Modelo LSTM
+    # LSTM model
     class LSTMForecaster(nn.Module):
         def __init__(self, input_dim, hidden_dim, num_layers=1):
             super(LSTMForecaster, self).__init__()
@@ -220,14 +220,14 @@ def run_modeling_evaluation():
             
         def forward(self, x):
             out, _ = self.lstm(x)
-            out = self.fc(out[:, -1, :]) # usar o último estado oculto
+            out = self.fc(out[:, -1, :]) # use the last hidden state
             return out
             
     lstm_model = LSTMForecaster(input_dim=3, hidden_dim=8)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(lstm_model.parameters(), lr=0.01)
     
-    # Treino da Rede Neuronal
+    # Train the neural network
     epochs = 150
     lstm_model.train()
     for epoch in range(epochs):
@@ -239,12 +239,12 @@ def run_modeling_evaluation():
         if (epoch + 1) % 50 == 0:
             print(f"  Epoch [{epoch+1}/{epochs}], Loss: {loss.item():.6f}")
             
-    # Previsão out-of-sample
-    # Para prever dinamicamente e de forma autónoma:
-    # Usaremos os inputs de treino e alimentamos a previsão recursivamente
+    # Out-of-sample prediction
+    # To predict dynamically and autonomously:
+    # start from the training inputs and feed predictions back recursively
     lstm_model.eval()
     
-    # Vamos criar o dataset de teste
+    # Build the test dataset
     test_diff_values = full_diff.iloc[train_size-1-lookback:].values
     X_test, y_test = create_lstm_dataset(test_diff_values, lookback)
     X_test_t = torch.FloatTensor(X_test)
@@ -252,7 +252,7 @@ def run_modeling_evaluation():
     with torch.no_grad():
         lstm_preds_diff = lstm_model(X_test_t).numpy().flatten()
         
-    # Reconstruir em níveis para o conjunto de teste
+    # Rebuild levels for the test set
     lstm_pred = []
     last_val_log = train_log['Share_Index'].iloc[-1]
     for d_pred in lstm_preds_diff[:len(test_df)]:
@@ -263,7 +263,7 @@ def run_modeling_evaluation():
     lstm_pred = pd.Series(lstm_pred, index=test_df.index)
     predictions_dict['LSTM'] = lstm_pred
     
-    # Métricas de erro
+    # Error metrics
     lstm_rmse = np.sqrt(mean_squared_error(test_df['Share_Index'], lstm_pred))
     lstm_mae = mean_absolute_error(test_df['Share_Index'], lstm_pred)
     lstm_mape = calculate_mape(test_df['Share_Index'], lstm_pred)
@@ -275,10 +275,10 @@ def run_modeling_evaluation():
         'MAPE': lstm_mape
     })
     
-    # Forecast futuro (10 passos à frente)
-    # Previsão recursiva estrita a 10 passos:
-    # Como a rede precisa das 3 variáveis para o input, e só prevemos a coluna 0,
-    # vamos assumir que as outras colunas (taxa de câmbio e petróleo) se mantêm estáveis no último valor.
+    # Future forecast (10 steps ahead)
+    # Strictly recursive 10-step forecast:
+    # The network needs all 3 variables as input but only column 0 is predicted,
+    # so the other columns (exchange rate and oil) are assumed to stay at their last value.
     last_inputs = full_diff.iloc[-lookback:].values
     lstm_forecasts_diff = []
     current_input = last_inputs.copy()
@@ -288,8 +288,8 @@ def run_modeling_evaluation():
             input_tensor = torch.FloatTensor(current_input).unsqueeze(0)
             pred_d = lstm_model(input_tensor).item()
             lstm_forecasts_diff.append(pred_d)
-            # Atualizar os inputs: remove o mais antigo, adiciona a nova previsão de Share_Index,
-            # e assume variação zero (0) para USD_NOK e Brent_Oil
+            # Update the inputs: drop the oldest row, add the new Share_Index prediction,
+            # and assume zero change for USD_NOK and Brent_Oil
             new_row = np.array([pred_d, 0.0, 0.0])
             current_input = np.vstack([current_input[1:], new_row])
             
@@ -303,46 +303,46 @@ def run_modeling_evaluation():
     lstm_forecast = pd.Series(lstm_forecast, index=exog_forecast.index)
     
     # ==========================================
-    # SALVAR RESULTADOS E COMPARAÇÃO
+    # SAVE RESULTS AND COMPARISON
     # ==========================================
     comparison_df = pd.DataFrame(model_comparison)
-    print("\n--- Comparação de Desempenho dos Modelos ---")
+    print("\n--- Model Performance Comparison ---")
     print(comparison_df.to_string(index=False))
     comparison_df.to_csv(os.path.join(ROOT, 'report', 'tables', 'model_comparison.csv'), index=False)
     
-    # Gráfico de Previsão Out-of-Sample (Teste)
+    # Out-of-sample prediction plot (test period)
     plt.figure(figsize=(12, 6))
-    plt.plot(test_df.index, test_df['Share_Index'], label='True Stock Index (Noruega)', color='black', lw=2.2)
+    plt.plot(test_df.index, test_df['Share_Index'], label='True Stock Index (Norway)', color='black', lw=2.2)
     plt.plot(test_df.index, sarimax_pred, label=f'SARIMAX (MAPE={sarimax_mape:.2f}%)', color='#d62728', lw=1.8, linestyle='-.')
     plt.plot(test_df.index, var_pred, label=f'VAR (MAPE={var_mape:.2f}%)', color='#1f77b4', lw=1.8, linestyle='--')
     plt.plot(test_df.index, lstm_pred, label=f'LSTM (MAPE={lstm_mape:.2f}%)', color='#2ca02c', lw=1.8, linestyle=':')
-    plt.title('Previsão Out-of-Sample no Período de Teste (2022-2026)', fontsize=14, fontweight='bold')
-    plt.xlabel('Data')
-    plt.ylabel('Índice de Ações (Noruega)')
+    plt.title('Out-of-Sample Predictions over the Test Period (2022-2026)', fontsize=14, fontweight='bold')
+    plt.xlabel('Date')
+    plt.ylabel('Share Price Index (Norway)')
     plt.legend(loc='upper left', fontsize=10)
     plt.grid(True, linestyle=':', alpha=0.6)
     plt.tight_layout()
     plt.savefig(os.path.join(ROOT, 'report', 'plots', 'out_of_sample_comparison.png'), dpi=300)
     plt.close()
     
-    # Gráfico de Forecast Futuro (10 passos à frente)
+    # Future forecast plot (10 steps ahead)
     plt.figure(figsize=(12, 6))
-    # Mostrar últimos 24 meses reais para contexto
+    # Show the last 24 actual months for context
     history = df['Share_Index'].iloc[-24:]
-    plt.plot(history.index, history, label='Histórico Real', color='black', lw=2.0)
+    plt.plot(history.index, history, label='Actual History', color='black', lw=2.0)
     plt.plot(exog_forecast.index, sarimax_forecast, label='SARIMAX Forecast', color='#d62728', lw=2.0, marker='o', linestyle='-.')
     plt.plot(exog_forecast.index, var_forecast, label='VAR Forecast', color='#1f77b4', lw=2.0, marker='s', linestyle='--')
     plt.plot(exog_forecast.index, lstm_forecast, label='LSTM Forecast', color='#2ca02c', lw=2.0, marker='^', linestyle=':')
-    plt.title('Forecast Futuro a 10 Meses (Abril 2026 - Janeiro 2027)', fontsize=14, fontweight='bold')
-    plt.xlabel('Data')
-    plt.ylabel('Índice de Ações (Noruega)')
+    plt.title('10-Month Future Forecast (April 2026 - January 2027)', fontsize=14, fontweight='bold')
+    plt.xlabel('Date')
+    plt.ylabel('Share Price Index (Norway)')
     plt.legend(loc='upper left', fontsize=10)
     plt.grid(True, linestyle=':', alpha=0.6)
     plt.tight_layout()
     plt.savefig(os.path.join(ROOT, 'report', 'plots', 'future_forecast_comparison.png'), dpi=300)
     plt.close()
     
-    # Salvar forecasts numa tabela
+    # Save the forecasts to a table
     forecast_df = pd.DataFrame({
         'SARIMAX': sarimax_forecast,
         'VAR': var_forecast,
@@ -350,8 +350,8 @@ def run_modeling_evaluation():
     }, index=exog_forecast.index)
     forecast_df.to_csv(os.path.join(ROOT, 'report', 'tables', 'future_forecasts.csv'))
     
-    print("\nModelação, avaliação e forecast executados com total sucesso!")
-    print("Gráficos e tabelas foram guardados na pasta report/ com alta qualidade.")
+    print("\nModelling, evaluation and forecasting completed successfully!")
+    print("High-resolution plots and tables were saved to the report/ folder.")
 
 if __name__ == '__main__':
     run_modeling_evaluation()

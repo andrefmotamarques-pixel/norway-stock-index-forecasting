@@ -5,9 +5,9 @@ import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def download_data():
-    print("Iniciando download dos dados da FRED...")
+    print("Starting FRED data download...")
     
-    # URLs diretas para download de CSV da FRED
+    # Direct CSV download URLs from FRED
     urls = {
         'Share_Index': 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=SPASTT01NOM661N',
         'USD_NOK': 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=EXNOUS',
@@ -16,39 +16,39 @@ def download_data():
     
     dfs = {}
     for name, url in urls.items():
-        print(f"A descarregar {name} da FRED...")
+        print(f"Downloading {name} from FRED...")
         try:
             df = pd.read_csv(url, parse_dates=['observation_date'], index_col='observation_date')
-            # FRED usa '.' para valores em falta. Vamos converter para float e tratar
+            # FRED uses '.' for missing values, so convert to float and handle them
             col_name = df.columns[0]
             df[col_name] = pd.to_numeric(df[col_name], errors='coerce')
             dfs[name] = df
-            print(f"Sucesso! {len(df)} observações obtidas de {df.index.min().date()} a {df.index.max().date()}.")
+            print(f"Success! {len(df)} observations retrieved from {df.index.min().date()} to {df.index.max().date()}.")
         except Exception as e:
-            print(f"Erro ao descarregar {name}: {e}")
+            print(f"Error downloading {name}: {e}")
             return None
             
-    # Fundir os DataFrames com base na data (inner join para garantir observações completas)
+    # Merge the DataFrames on date (inner join to keep only complete observations)
     merged_df = dfs['Share_Index'].join(dfs['USD_NOK'], how='inner').join(dfs['Brent_Oil'], how='inner')
     
-    # Tratar valores em falta
+    # Handle missing values
     if merged_df.isnull().any().any():
-        print("Valores em falta detetados. A aplicar interpolação linear...")
+        print("Missing values detected. Applying linear interpolation...")
         merged_df = merged_df.interpolate(method='linear')
-        merged_df = merged_df.bfill().ffill() # garantias adicionais para os extremos
+        merged_df = merged_df.bfill().ffill() # extra safeguard for the endpoints
         
     merged_df.columns = ['Share_Index', 'USD_NOK', 'Brent_Oil']
     
-    # Criar pasta data se não existir
+    # Create the data folder if it does not exist
     os.makedirs('data', exist_ok=True)
     
-    # Salvar em CSV
+    # Save to CSV
     output_path = os.path.join(ROOT, 'data', 'norway_data.csv')
     merged_df.to_csv(output_path)
-    print(f"\nDados combinados com sucesso e salvos em: {os.path.abspath(output_path)}")
-    print(f"Número de observações: {len(merged_df)}")
-    print(f"Período: de {merged_df.index.min().date()} a {merged_df.index.max().date()}")
-    print("\nResumo dos Dados:")
+    print(f"\nData merged successfully and saved to: {os.path.abspath(output_path)}")
+    print(f"Number of observations: {len(merged_df)}")
+    print(f"Period: {merged_df.index.min().date()} to {merged_df.index.max().date()}")
+    print("\nData Summary:")
     print(merged_df.describe())
     return merged_df
 
